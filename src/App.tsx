@@ -883,15 +883,56 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
         resolve();
         return;
       }
-      
-      console.log("Using system TTS fallback");
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'vi-VN';
-      
-      // Try to find a Vietnamese voice
-      const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.lang.includes('vi') || v.lang.includes('VN'));
-      if (viVoice) utterance.voice = viVoice;
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+
+      // Lấy danh sách voices (async trên một số trình duyệt)
+      const loadVoices = () => {
+        const allVoices = window.speechSynthesis!.getVoices();
+        if (allVoices.length === 0) return null;
+
+        // Ưu tiên: giọng nữ Việt Nam
+        const viFemale = allVoices.find(v =>
+          (v.lang.includes('vi') || v.lang.includes('VN')) &&
+          (v.name.toLowerCase().includes('female') ||
+           v.name.toLowerCase().includes('nữ') ||
+           v.name.toLowerCase().includes('woman') ||
+           v.name.toLowerCase().includes('vietnamese') ||
+           v.lang === 'vi-VN')
+        );
+        if (viFemale) return viFemale;
+
+        // Tiếp theo: bất kỳ giọng Việt nào
+        const viAny = allVoices.find(v =>
+          v.lang.includes('vi') || v.lang.includes('VN')
+        );
+        if (viAny) return viAny;
+
+        return null;
+      };
+
+      let selectedVoice = loadVoices();
+
+      // Nếu voices chưa load xong, đợi event
+      if (!selectedVoice && window.speechSynthesis!.getVoices().length === 0) {
+        const onVoicesChanged = () => {
+          selectedVoice = loadVoices();
+          if (selectedVoice) {
+            utterance.voice = selectedVoice;
+            console.log("System TTS voice:", selectedVoice.name);
+          } else {
+            console.warn("Không tìm thấy giọng Việt, dùng default");
+          }
+          window.speechSynthesis!.removeEventListener('voiceschanged', onVoicesChanged);
+        };
+        window.speechSynthesis!.addEventListener('voiceschanged', onVoicesChanged);
+      } else if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log("System TTS voice:", selectedVoice.name);
+      }
 
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => {
@@ -902,8 +943,9 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
         setIsSpeaking(false);
         resolve();
       };
-      
-      window.speechSynthesis.speak(utterance);
+
+      console.log("Using system TTS fallback");
+      window.speechSynthesis!.speak(utterance);
     });
   };
 
