@@ -7,7 +7,7 @@ export async function generateSpeech(text: string) {
     
     console.log("Generating speech for text length:", text.length);
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
+      model: "gemini-2.5-pro-preview-tts",
       contents: [{ parts: [{ text }] }],
       config: {
         responseModalities: [Modality.AUDIO],
