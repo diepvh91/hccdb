@@ -133,9 +133,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (sizeInBytes > 30 * 1024 * 1024) {
         return res.status(400).json({ error: "Tep qua lon. Vui long chon tep nho hon 30MB." });
       }
-      const buffer = Buffer.from(fileData, "base64");
-      const blob = await put(fileName, buffer, { contentType, access: "public" });
-      return res.status(200).json({ url: blob.url });
+      try {
+        const buffer = Buffer.from(fileData, "base64");
+        console.log(`Upload: ${fileName}, size: ${buffer.length} bytes`);
+        const blob = await put(fileName, buffer, { contentType, access: "public" });
+        return res.status(200).json({ url: blob.url });
+      } catch (blobError: any) {
+        console.error("Blob upload error:", blobError.message, blobError.stack);
+        return res.status(500).json({ error: "Loi upload: " + blobError.message });
+      }
     }
 
     return res.status(404).json({ error: "Not found" });
@@ -144,6 +150,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (e.message?.includes("UNIQUE constraint failed")) {
       return res.status(400).json({ error: "Subdomain da ton tai" });
     }
-    return res.status(500).json({ error: "Co loi xay ra tren may chu." });
+    // Return actual error message for debugging
+    const errorMsg = e.message || String(e);
+    console.error("Full error:", JSON.stringify(e));
+    return res.status(500).json({ error: "Co loi xay ra tren may chu: " + errorMsg });
   }
 }
