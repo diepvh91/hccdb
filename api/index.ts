@@ -57,7 +57,7 @@ async function ensureDb() {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   await ensureDb();
 
-  const { path, method } = req;
+  const method = req.method;
   const url = new URL(req.url || "", `https://${req.headers.host}`);
   const pathname = url.pathname;
 
