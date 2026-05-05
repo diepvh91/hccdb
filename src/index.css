@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #ef4444; /* Red-500 */
+  --color-primary-dark: #dc2626; /* Red-600 */
+  --radius-lg: 0.5rem;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-sm;
+}

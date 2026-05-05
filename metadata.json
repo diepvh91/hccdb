@@ -1,0 +1,8 @@
+{
+  "name": "AI HCC - Giao diện chuẩn",
+  "description": "Hệ thống trợ lý ảo AI đa đơn vị với khả năng tương tác video và quản lý dữ liệu tập trung.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
