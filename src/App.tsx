@@ -752,22 +752,34 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
     // Actually, we want to play them in sequence, so we don't call stopSpeaking here
     // stopSpeaking() is called at the start of handleSend
 
-    // Use Gemini TTS for high-quality voice
+    // Text dài (>250 ký tự) → dùng system TTS để tránh timeout
+    if (cleanText.length > 250) {
+      console.log("Text dài, dùng system TTS");
+      await fallbackToSystemTTS(cleanText);
+      return;
+    }
+
+    // Text ngắn → dùng Gemini TTS (chất lượng cao)
     try {
       const base64Audio = await generateSpeech(cleanText);
-      
+
       if (!base64Audio) {
-        console.error("Gemini TTS returned no audio data");
-        return; // Don't fallback to avoid "two voices" confusion
+        console.warn("Gemini TTS returned no audio, falling back to system TTS");
+        await fallbackToSystemTTS(cleanText);
+        return;
       }
 
       if (requestId !== currentRequestIdRef.current) return;
 
       console.log("Audio data received, length:", base64Audio.length);
-      // Play Gemini TTS audio and wait for it to finish
       await playPcmAudio(base64Audio);
     } catch (error) {
-      console.error("Gemini TTS failed:", error);
+      console.error("Gemini TTS failed, falling back to system TTS:", error);
+      try {
+        await fallbackToSystemTTS(cleanText);
+      } catch (e) {
+        console.error("System TTS also failed:", e);
+      }
     }
   };
 
