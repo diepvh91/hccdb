@@ -966,12 +966,8 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-      <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={18} className="text-blue-600" />
-          <span className="font-bold text-slate-700">Hỏi đáp</span>
-        </div>
-        <button 
+      <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-end">
+        <button
           onClick={onAdminClick}
           className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
         >
@@ -1091,38 +1087,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Webcam refs shared between left panel circle and ChatInterface
-  const webcamVideoRef = useRef<HTMLVideoElement>(null);
-  const webcamStreamRef = useRef<MediaStream | null>(null);
-  const [webcamError, setWebcamError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480 },
-          audio: false
-        });
-        webcamStreamRef.current = mediaStream;
-        // Small delay to ensure ref is attached to DOM
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (webcamVideoRef.current) {
-          webcamVideoRef.current.srcObject = mediaStream;
-          await webcamVideoRef.current.play().catch(console.error);
-        }
-      } catch (err) {
-        console.error("Error accessing webcam:", err);
-        setWebcamError("Không thể truy cập camera.");
-      }
-    };
-    startCamera();
-    return () => {
-      if (webcamStreamRef.current) {
-        webcamStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
   const fetchUnits = () => {
     setIsLoading(true);
     fetch('/api/units')
@@ -1188,7 +1152,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-3 md:p-5 font-sans">
       <div className="w-full max-w-[1600px] flex flex-col lg:flex-row gap-4 md:gap-5" style={{ height: 'calc(100vh - 40px)' }}>
         {/* Left Column: AI Character View */}
-        <div className="relative w-full lg:w-[30%] bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group flex items-center justify-center">
+        <div className="relative w-full lg:w-[40%] bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group flex items-center justify-center">
           <AnimatePresence mode="wait">
             {isSpeaking ? (
               <motion.video
@@ -1221,28 +1185,10 @@ export default function App() {
               Trợ lý AI
             </div>
           </div>
-
-          {/* Webcam circle - top right corner */}
-          <div className="absolute top-4 right-4 w-16 h-16 md:w-24 md:h-24 rounded-full overflow-hidden shadow-2xl border-[3px] border-white/40 z-10">
-            {webcamError ? (
-              <div className="w-full h-full bg-slate-700 flex items-center justify-center">
-                <Video size={20} className="text-slate-500" />
-              </div>
-            ) : (
-              <video
-                ref={webcamVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover scale-x-[-1]"
-              />
-            )}
-            <div className="absolute inset-0 rounded-full border-2 border-blue-400/30 pointer-events-none" />
-          </div>
         </div>
 
         {/* Right Column: Unit Info + Chat */}
-        <div className="w-full lg:w-[70%] flex flex-col gap-4 md:gap-5">
+        <div className="w-full lg:w-[60%] flex flex-col gap-4 md:gap-5">
           {/* Header: Unit Info + Admin Button */}
           <div className="relative bg-gradient-to-br from-red-600 to-red-800 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 px-6 py-4 flex items-center">
             <div className="flex items-center gap-3 flex-1 min-w-0">
