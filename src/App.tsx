@@ -1097,6 +1097,13 @@ export default function App() {
   const [webcamError, setWebcamError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (webcamStreamRef.current && webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = webcamStreamRef.current;
+      webcamVideoRef.current.play().catch(console.error);
+    }
+  }, []);
+
+  useEffect(() => {
     const startCamera = async () => {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -1106,6 +1113,7 @@ export default function App() {
         webcamStreamRef.current = mediaStream;
         if (webcamVideoRef.current) {
           webcamVideoRef.current.srcObject = mediaStream;
+          webcamVideoRef.current.play().catch(console.error);
         }
       } catch (err) {
         console.error("Error accessing webcam:", err);
@@ -1181,9 +1189,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden font-sans">
       <main className="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 overflow-hidden">
         {/* Left Side: AI Character + Unit Info */}
-        <div className="flex flex-col h-full overflow-hidden gap-4 md:gap-6">
+        <div className="flex flex-col sm:flex-row h-full overflow-hidden gap-4 md:gap-6">
           {/* AI Character View */}
-          <div className="relative flex-[3] min-h-0 bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group">
+          <div className="relative flex-1 min-h-[280px] sm:min-h-0 sm:flex-[3] bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group">
             <AnimatePresence mode="wait">
               {isSpeaking ? (
                 <motion.video
@@ -1218,10 +1226,10 @@ export default function App() {
             </div>
 
             {/* Webcam circle - top right corner */}
-            <div className="absolute top-4 right-4 w-20 h-20 rounded-full overflow-hidden shadow-2xl border-3 border-white/40 z-10">
+            <div className="absolute top-4 right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-2xl border-[3px] border-white/40 z-10">
               {webcamError ? (
                 <div className="w-full h-full bg-slate-700 flex items-center justify-center">
-                  <Video size={20} className="text-slate-500" />
+                  <Video size={18} className="text-slate-500" />
                 </div>
               ) : (
                 <video
@@ -1244,24 +1252,24 @@ export default function App() {
           </div>
 
           {/* Unit Info */}
-          <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 flex-1 min-h-0">
+          <div className="relative bg-gradient-to-br from-red-700 to-red-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 flex-1 min-h-[140px] sm:min-h-0">
             <div className="absolute inset-0 opacity-5 pointer-events-none">
               <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px'}} />
             </div>
-            <div className="relative h-full flex flex-col justify-end p-6 pb-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-600/80 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Building2 size={20} className="text-white" />
+            <div className="relative h-full flex flex-col justify-end p-5 sm:p-6 sm:pb-5">
+              <div className="flex items-center gap-3 mb-2 sm:mb-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Building2 size={18} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-blue-300 font-bold uppercase tracking-widest">Đơn vị</p>
-                  <h2 className="text-white font-bold text-lg leading-tight">{currentUnit.name}</h2>
+                  <p className="text-[9px] sm:text-[10px] text-red-200 font-bold uppercase tracking-widest">Đơn vị</p>
+                  <h2 className="text-white font-bold text-base sm:text-lg leading-tight">{currentUnit.name}</h2>
                 </div>
               </div>
               {currentUnit.description && (
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-                  <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mb-2">Mô tả</p>
-                  <p className="text-white/90 text-sm leading-relaxed">{currentUnit.description}</p>
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 sm:p-4">
+                  <p className="text-[9px] sm:text-[10px] text-red-200 font-bold uppercase tracking-widest mb-1 sm:mb-2">Mô tả</p>
+                  <p className="text-white/90 text-xs sm:text-sm leading-relaxed line-clamp-2 sm:line-clamp-none">{currentUnit.description}</p>
                 </div>
               )}
             </div>
@@ -1269,7 +1277,7 @@ export default function App() {
         </div>
 
         {/* Right Side: Chat Container */}
-        <div className="h-full flex flex-col min-h-0">
+        <div className="h-full flex flex-col min-h-0 sm:min-h-[500px] lg:min-h-0">
           <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setIsAdmin(true)} />
         </div>
       </main>
