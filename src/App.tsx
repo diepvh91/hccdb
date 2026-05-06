@@ -1097,13 +1097,6 @@ export default function App() {
   const [webcamError, setWebcamError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (webcamStreamRef.current && webcamVideoRef.current) {
-      webcamVideoRef.current.srcObject = webcamStreamRef.current;
-      webcamVideoRef.current.play().catch(console.error);
-    }
-  }, []);
-
-  useEffect(() => {
     const startCamera = async () => {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -1111,9 +1104,11 @@ export default function App() {
           audio: false
         });
         webcamStreamRef.current = mediaStream;
+        // Small delay to ensure ref is attached to DOM
+        await new Promise(resolve => setTimeout(resolve, 100));
         if (webcamVideoRef.current) {
           webcamVideoRef.current.srcObject = mediaStream;
-          webcamVideoRef.current.play().catch(console.error);
+          await webcamVideoRef.current.play().catch(console.error);
         }
       } catch (err) {
         console.error("Error accessing webcam:", err);
@@ -1189,9 +1184,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden font-sans">
       <main className="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 overflow-hidden">
         {/* Left Side: AI Character + Unit Info */}
-        <div className="flex flex-col sm:flex-row h-full overflow-hidden gap-4 md:gap-6">
+        <div className="flex flex-col h-full overflow-hidden gap-4 md:gap-6">
           {/* AI Character View */}
-          <div className="relative flex-1 min-h-[280px] sm:min-h-0 sm:flex-[3] bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group">
+          <div className="relative flex-[3] min-h-0 bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group">
             <AnimatePresence mode="wait">
               {isSpeaking ? (
                 <motion.video
@@ -1252,24 +1247,20 @@ export default function App() {
           </div>
 
           {/* Unit Info */}
-          <div className="relative bg-gradient-to-br from-red-700 to-red-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 flex-1 min-h-[140px] sm:min-h-0">
+          <div className="relative bg-gradient-to-br from-red-700 to-red-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 flex-1 min-h-0">
             <div className="absolute inset-0 opacity-5 pointer-events-none">
               <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px'}} />
             </div>
-            <div className="relative h-full flex flex-col justify-end p-5 sm:p-6 sm:pb-5">
-              <div className="flex items-center gap-3 mb-2 sm:mb-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Building2 size={18} className="text-white" />
+            <div className="relative h-full flex flex-col justify-end p-6 pb-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Building2 size={20} className="text-white" />
                 </div>
-                <div>
-                  <p className="text-[9px] sm:text-[10px] text-red-200 font-bold uppercase tracking-widest">Đơn vị</p>
-                  <h2 className="text-white font-bold text-base sm:text-lg leading-tight">{currentUnit.name}</h2>
-                </div>
+                <h2 className="text-white font-bold text-lg leading-tight">{currentUnit.name}</h2>
               </div>
               {currentUnit.description && (
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 sm:p-4">
-                  <p className="text-[9px] sm:text-[10px] text-red-200 font-bold uppercase tracking-widest mb-1 sm:mb-2">Mô tả</p>
-                  <p className="text-white/90 text-xs sm:text-sm leading-relaxed line-clamp-2 sm:line-clamp-none">{currentUnit.description}</p>
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
+                  <p className="text-white/90 text-sm leading-relaxed">{currentUnit.description}</p>
                 </div>
               )}
             </div>
@@ -1277,7 +1268,7 @@ export default function App() {
         </div>
 
         {/* Right Side: Chat Container */}
-        <div className="h-full flex flex-col min-h-0 sm:min-h-[500px] lg:min-h-0">
+        <div className="h-full flex flex-col min-h-0">
           <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setIsAdmin(true)} />
         </div>
       </main>
