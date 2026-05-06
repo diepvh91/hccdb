@@ -381,9 +381,6 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
             <h1 className="text-xl font-bold text-slate-800">AI Video Assistant - Admin</h1>
           </div>
           <div className="flex gap-3">
-            <button onClick={onBack} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg flex items-center gap-2 transition-colors">
-              <ChevronLeft size={18} /> Về trang chính
-            </button>
             <button onClick={onBack} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-2 transition-colors">
               <LogOut size={18} /> Đăng xuất
             </button>
