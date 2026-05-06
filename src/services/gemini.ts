@@ -3,39 +3,41 @@ import { GoogleGenAI, Modality } from "@google/genai";
 export async function generateSpeech(text: string) {
   try {
     const apiKey = process.env.GEMINI_API_KEY || "";
-    const ai = new GoogleGenAI({ apiKey });
-    
-    console.log("Generating speech for text length:", text.length);
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
+
+    // Google Cloud TTS — gọi trực tiếp từ browser, giọng nữ Việt Nam
+    const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
+    const response = await fetch(ttsUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: { text },
+        voice: {
+          languageCode: "vi-VN",
+          name: "vi-VN-Standard-A",
+          ssmlGender: "FEMALE",
         },
-      },
+        audioConfig: {
+          audioEncoding: "MP3",
+          speakingRate: 0.9,
+          pitch: 0,
+        },
+      }),
     });
 
-    const parts = response.candidates?.[0]?.content?.parts || [];
-    let base64Audio = null;
-    
-    // Iterate through all parts to find the audio data
-    for (const part of parts) {
-      if (part.inlineData?.data) {
-        base64Audio = part.inlineData.data;
-        console.log("Gemini TTS: Found audio data in part, size:", base64Audio.length);
-        break;
-      }
+    if (!response.ok) {
+      const err = await response.json();
+      console.error("Google Cloud TTS error:", err);
+      return null;
     }
-    
-    if (!base64Audio) {
-      console.error("Gemini TTS: No audio data found in any response part", parts);
+
+    const data = await response.json();
+    if (!data.audioContent) {
+      console.error("Google Cloud TTS: no audio content");
+      return null;
     }
-    
-    return base64Audio;
+
+    console.log("Google Cloud TTS: audio generated, size:", data.audioContent.length);
+    return data.audioContent;
   } catch (error) {
     console.error("Speech Generation Error:", error);
     return null;

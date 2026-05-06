@@ -752,14 +752,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
     // Actually, we want to play them in sequence, so we don't call stopSpeaking here
     // stopSpeaking() is called at the start of handleSend
 
-    // Text dài (>250 ký tự) → dùng system TTS để tránh timeout
-    if (cleanText.length > 250) {
-      console.log("Text dài, dùng system TTS");
-      await fallbackToSystemTTS(cleanText);
-      return;
-    }
-
-    // Text ngắn → dùng Gemini TTS (chất lượng cao)
+    // Dùng Google Cloud TTS (gọi trực tiếp từ browser, giọng nữ Việt Nam)
     try {
       const base64Audio = await generateSpeech(cleanText);
 
@@ -772,7 +765,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
       if (requestId !== currentRequestIdRef.current) return;
 
       console.log("Audio data received, length:", base64Audio.length);
-      await playPcmAudio(base64Audio);
+      await playMp3Audio(base64Audio);
     } catch (error) {
       console.error("Gemini TTS failed, falling back to system TTS:", error);
       try {
@@ -783,96 +776,21 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
     }
   };
 
-  const playPcmAudio = (base64Data: string) => {
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        const ctx = audioContextRef.current;
-        
-        if (ctx.state === 'suspended') {
-          await ctx.resume();
-        }
-
-        if (currentSourceRef.current) {
-          try {
-            currentSourceRef.current.stop();
-          } catch (e) {
-            // Ignore
-          }
-        }
-
-        const binaryString = window.atob(base64Data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        // Create a WAV header for 24kHz Mono 16-bit PCM
-        const dataSize = bytes.length;
-        const header = new ArrayBuffer(44);
-        const view = new DataView(header);
-        
-        const writeString = (offset: number, string: string) => {
-          for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-          }
-        };
-
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + dataSize, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true); // PCM
-        view.setUint16(22, 1, true); // Mono
-        view.setUint32(24, 24000, true); // Sample Rate
-        view.setUint32(28, 24000 * 2, true); // Byte Rate
-        view.setUint16(32, 2, true); // Block Align
-        view.setUint16(34, 16, true); // Bits per Sample
-        writeString(36, 'data');
-        view.setUint32(40, dataSize, true);
-
-        const wavBytes = new Uint8Array(44 + dataSize);
-        wavBytes.set(new Uint8Array(header));
-        wavBytes.set(bytes, 44);
-
-        let audioBuffer: AudioBuffer;
-        try {
-          audioBuffer = await ctx.decodeAudioData(wavBytes.buffer);
-        } catch (e) {
-          console.warn("WAV decoding failed, falling back to raw PCM", e);
-          const pcmData = new Int16Array(bytes.buffer.slice(0, bytes.length - (bytes.length % 2)));
-          const floatData = new Float32Array(pcmData.length);
-          for (let i = 0; i < pcmData.length; i++) {
-            floatData[i] = pcmData[i] / 32768.0;
-          }
-          audioBuffer = ctx.createBuffer(1, floatData.length, 24000);
-          audioBuffer.getChannelData(0).set(floatData);
-        }
-
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx.destination);
-        if (analyserRef.current) source.connect(analyserRef.current);
-        
-        source.onended = () => {
-          if (currentSourceRef.current === source) {
-            setIsSpeaking(false);
-            currentSourceRef.current = null;
-            resolve();
-          }
-        };
-        
-        currentSourceRef.current = source;
-        setIsSpeaking(true);
-        source.start(0);
-      } catch (error) {
-        console.error("Error playing PCM audio:", error);
+  const playMp3Audio = (base64Data: string) => {
+    return new Promise<void>((resolve, reject) => {
+      const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
+      audio.playbackRate = 0.9;
+      audio.onplay = () => setIsSpeaking(true);
+      audio.onended = () => {
         setIsSpeaking(false);
-        reject(error);
-      }
+        resolve();
+      };
+      audio.onerror = (e) => {
+        console.error("MP3 playback error:", e);
+        setIsSpeaking(false);
+        reject(new Error("Playback failed"));
+      };
+      audio.play().catch(reject);
     });
   };
 
