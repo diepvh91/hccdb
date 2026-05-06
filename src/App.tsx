@@ -1398,7 +1398,7 @@ const UserWebcam = () => {
   }, []);
 
   return (
-    <div className="absolute top-4 right-4 w-28 h-36 md:w-36 md:h-48 rounded-2xl overflow-hidden shadow-2xl border-3 border-white/50 z-10">
+    <div className="absolute top-4 right-4 w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden shadow-2xl border-4 border-white/50 z-10">
       <video
         ref={videoRef}
         autoPlay
@@ -1406,8 +1406,8 @@ const UserWebcam = () => {
         muted
         className="w-full h-full object-cover scale-x-[-1]"
       />
-      <div className="absolute bottom-2 left-2">
-        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+      <div className="absolute bottom-1 right-1">
+        <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-white" />
       </div>
     </div>
   );
