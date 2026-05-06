@@ -16,7 +16,7 @@ export async function generateSpeech(text: string) {
         },
         audioConfig: {
           audioEncoding: "MP3",
-          speakingRate: 0.9,
+          speakingRate: 1.0,
           pitch: 0,
         },
       }),

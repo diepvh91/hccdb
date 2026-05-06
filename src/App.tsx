@@ -779,7 +779,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
   const playMp3Audio = (base64Data: string) => {
     return new Promise<void>((resolve, reject) => {
       const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
-      audio.playbackRate = 0.9;
+      audio.playbackRate = 1.0;
       audio.onplay = () => setIsSpeaking(true);
       audio.onended = () => {
         setIsSpeaking(false);
@@ -806,7 +806,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'vi-VN';
-      utterance.rate = 0.9;
+      utterance.rate = 1.0;
       utterance.pitch = 1.0;
 
       // Tìm giọng nữ Việt Nam
