@@ -2,7 +2,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 
 export async function generateSpeech(text: string) {
   try {
-    const ttsApiKey = process.env.GOOGLE_CLOUD_TTS_KEY || process.env.GEMINI_API_KEY || "";
+    const ttsApiKey = process.env.GEMINI_API_KEY || "";
     const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsApiKey}`;
     const response = await fetch(ttsUrl, {
       method: "POST",
