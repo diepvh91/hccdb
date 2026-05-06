@@ -1085,81 +1085,16 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
   );
 };
 
-const UnitInfoCard = () => {
-  if (!currentUnit) return null;
-  return (
-    <div className="relative w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20">
-      {/* Background pattern */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px'}} />
-      </div>
+export default function App() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-      {/* Header */}
-      <div className="relative bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-            <Building2 size={20} className="text-white" />
-          </div>
-          <div>
-            <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest">Đơn vị</p>
-            <h2 className="text-white font-bold text-lg leading-tight">{currentUnit.name}</h2>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="relative p-6 space-y-4 overflow-y-auto h-[calc(100%-72px)]">
-        {currentUnit.description && (
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mb-2">Mô tả</p>
-            <p className="text-white/90 text-sm leading-relaxed">{currentUnit.description}</p>
-          </div>
-        )}
-
-        {currentUnit.title && (
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mb-1">Hệ thống</p>
-            <p className="text-white font-semibold">{currentUnit.title}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          {currentUnit.image_url && (
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center">
-              <Image size={16} className="text-blue-300 mx-auto mb-1" />
-              <p className="text-[10px] text-blue-200">Ảnh đại diện</p>
-              <p className="text-white/60 text-[10px]">Đã cập nhật</p>
-            </div>
-          )}
-          {currentUnit.video_url && (
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center">
-              <Video size={16} className="text-blue-300 mx-auto mb-1" />
-              <p className="text-[10px] text-blue-200">Video giới thiệu</p>
-              <p className="text-white/60 text-[10px]">Đã cập nhật</p>
-            </div>
-          )}
-          {currentUnit.pdf_url && (
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center">
-              <FileText size={16} className="text-blue-300 mx-auto mb-1" />
-              <p className="text-[10px] text-blue-200">Tài liệu PDF</p>
-              <p className="text-white/60 text-[10px]">Đã cập nhật</p>
-            </div>
-          )}
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center">
-            <MapPin size={16} className="text-blue-300 mx-auto mb-1" />
-            <p className="text-[10px] text-blue-200">Subdomain</p>
-            <p className="text-white/60 text-[10px] truncate">{currentUnit.subdomain}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const UserWebcam = () => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Webcam refs shared between left panel circle and ChatInterface
+  const webcamVideoRef = useRef<HTMLVideoElement>(null);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
+  const [webcamError, setWebcamError] = useState<string | null>(null);
 
   useEffect(() => {
     const startCamera = async () => {
@@ -1168,57 +1103,22 @@ const UserWebcam = () => {
           video: { width: 640, height: 480 },
           audio: false
         });
-        setStream(mediaStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
+        webcamStreamRef.current = mediaStream;
+        if (webcamVideoRef.current) {
+          webcamVideoRef.current.srcObject = mediaStream;
         }
       } catch (err) {
         console.error("Error accessing webcam:", err);
-        setError("Không thể truy cập camera.");
+        setWebcamError("Không thể truy cập camera.");
       }
     };
-
     startCamera();
-
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (webcamStreamRef.current) {
+        webcamStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, []);
-
-  return (
-    <div className="absolute bottom-4 right-4 w-48 h-36 rounded-2xl overflow-hidden shadow-2xl border-3 border-white group z-10">
-      {error ? (
-        <div className="w-full h-full bg-slate-800 flex items-center justify-center">
-          <Video size={20} className="text-slate-500" />
-        </div>
-      ) : (
-        <>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover scale-x-[-1]"
-          />
-          <div className="absolute top-2 left-2">
-            <div className="px-2 py-0.5 bg-blue-600 text-white text-[8px] font-bold rounded-full flex items-center gap-1">
-              <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
-              Bạn
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-export default function App() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const fetchUnits = () => {
     setIsLoading(true);
@@ -1280,57 +1180,53 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden font-sans">
       <main className="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 overflow-hidden">
-        {/* Left Side: Visuals */}
-        <div className="flex flex-col gap-4 md:gap-6 h-full overflow-hidden relative">
-          {/* AI Character View */}
-          <div className="flex-[3] min-h-0 flex flex-col relative aspect-video bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group">
-            <AnimatePresence mode="wait">
-              {isSpeaking ? (
-                <motion.video
-                  key="video"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  src={currentUnit.video_url || 'https://assets.mixkit.co/videos/preview/mixkit-woman-smiling-at-the-camera-3132-large.mp4'}
-                  autoPlay
-                  loop
-                  muted
-                  className="w-full h-full object-cover"
-                />
+        {/* Left Side: Unit Info + Camera */}
+        <div className="flex flex-col h-full overflow-hidden relative">
+          <div className="relative w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 flex flex-col">
+            {/* Background pattern */}
+            <div className="absolute inset-0 opacity-5 pointer-events-none">
+              <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px'}} />
+            </div>
+
+            {/* Webcam circle - top right */}
+            <div className="absolute top-4 right-4 w-20 h-20 rounded-full overflow-hidden shadow-2xl border-3 border-white/40 z-10">
+              {webcamError ? (
+                <div className="w-full h-full bg-slate-700 flex items-center justify-center">
+                  <Video size={20} className="text-slate-500" />
+                </div>
               ) : (
-                <motion.img
-                  key="image"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  src={currentUnit.image_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=1000'}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
+                <video
+                  ref={webcamVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover scale-x-[-1]"
                 />
               )}
-            </AnimatePresence>
+              <div className="absolute inset-0 rounded-full border-2 border-blue-400/30 pointer-events-none" />
+            </div>
 
-            <div className="absolute top-4 left-4">
-              <div className="px-3 py-1 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold rounded-full flex items-center gap-1.5 uppercase tracking-wider border border-white/10">
-                <span className={`w-1.5 h-1.5 rounded-full ${isSpeaking ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
-                Trợ lý AI
+            {/* Unit Info Content */}
+            <div className="flex-1 flex flex-col justify-end p-8 pb-10 relative z-[5]">
+              {/* Unit name */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-blue-600/80 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Building2 size={24} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-blue-300 font-bold uppercase tracking-widest">Đơn vị</p>
+                  <h2 className="text-white font-bold text-2xl leading-tight">{currentUnit.name}</h2>
+                </div>
               </div>
+
+              {/* Description */}
+              {currentUnit.description && (
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
+                  <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mb-2">Mô tả</p>
+                  <p className="text-white/90 text-sm leading-relaxed">{currentUnit.description}</p>
+                </div>
+              )}
             </div>
-
-            <div className="absolute bottom-4 left-4 right-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
-               <div className="p-3 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-white/20">
-                  <p className="text-[10px] font-bold text-slate-800 uppercase tracking-widest mb-0.5">Trạng thái</p>
-                  <p className="text-xs text-slate-600 font-medium">{isSpeaking ? 'Đang giải đáp thắc mắc...' : 'Sẵn sàng hỗ trợ bạn'}</p>
-               </div>
-            </div>
-
-            {/* Webcam floating overlay */}
-            <UserWebcam />
-          </div>
-
-          {/* Unit Info Card */}
-          <div className="flex-2 min-h-0 flex flex-col">
-            <UnitInfoCard />
           </div>
         </div>
 
