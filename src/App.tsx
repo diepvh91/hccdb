@@ -966,15 +966,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-      <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-end">
-        <button
-          onClick={onAdminClick}
-          className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
-        >
-          <Settings size={14} /> Quản trị
-        </button>
-      </div>
-
+      <div className="p-4 border-b border-slate-50 bg-slate-50/50" />
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
