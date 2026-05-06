@@ -2,10 +2,8 @@ import { GoogleGenAI, Modality } from "@google/genai";
 
 export async function generateSpeech(text: string) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY || "";
-
-    // Google Cloud TTS — gọi trực tiếp từ browser, giọng nữ Việt Nam
-    const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
+    const ttsApiKey = process.env.GOOGLE_CLOUD_TTS_KEY || process.env.GEMINI_API_KEY || "";
+    const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsApiKey}`;
     const response = await fetch(ttsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
