@@ -1366,6 +1366,53 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
   );
 };
 
+// --- User Webcam Component ---
+const UserWebcam = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+
+    const startCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+          audio: false,
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+      } catch (err) {
+        console.error("Camera error:", err);
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  return (
+    <div className="absolute top-4 right-4 w-28 h-36 md:w-36 md:h-48 rounded-2xl overflow-hidden shadow-2xl border-3 border-white/50 z-10">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="w-full h-full object-cover scale-x-[-1]"
+      />
+      <div className="absolute bottom-2 left-2">
+        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [adminView, setAdminView] = useState<'closed' | 'login' | 'dashboard'>('closed');
   const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
@@ -1474,6 +1521,8 @@ export default function App() {
               Trợ lý AI
             </div>
           </div>
+
+          <UserWebcam />
         </div>
 
         {/* Right Column: Unit Info + Chat */}
