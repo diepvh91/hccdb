@@ -56,7 +56,7 @@ const AdminLogin = ({ onLogin, onBack }: { onLogin: () => void; onBack: () => vo
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -65,10 +65,23 @@ const AdminLogin = ({ onLogin, onBack }: { onLogin: () => void; onBack: () => vo
       return;
     }
 
-    if (username === 'admin' && password === '123456Aa@') {
-      onLogin();
-    } else {
-      setError('Tên đăng nhập hoặc mật khẩu không đúng');
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/admins/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onLogin();
+      } else {
+        setError(data.error || 'Tên đăng nhập hoặc mật khẩu không đúng');
+      }
+    } catch {
+      setError('Không thể kết nối tới máy chủ');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -151,8 +164,16 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [previews, setPreviews] = useState<{ [key: string]: string }>({});
 
+  // Admin account management
+  const [admins, setAdmins] = useState<{ id: number; username: string; created_at: string }[]>([]);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<{ id?: number; username?: string; password?: string } | null>(null);
+  const [isAdminSaving, setIsAdminSaving] = useState(false);
+  const [adminError, setAdminError] = useState('');
+
   useEffect(() => {
     fetchUnits();
+    fetchAdmins();
     // Cleanup object URLs on unmount
     return () => {
       Object.values(previews).forEach((url: any) => {
@@ -168,6 +189,66 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       setUnits(data);
     } catch (error) {
       console.error("Error fetching units:", error);
+    }
+  };
+
+  const fetchAdmins = async () => {
+    try {
+      const res = await fetch('/api/admins');
+      const data = await res.json();
+      setAdmins(data);
+    } catch (error) {
+      console.error("Error fetching admins:", error);
+    }
+  };
+
+  const handleSaveAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminError('');
+    if (!editingAdmin?.username?.trim() || !editingAdmin?.password) {
+      setAdminError('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+    if (editingAdmin.password.length < 6) {
+      setAdminError('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+    setIsAdminSaving(true);
+    try {
+      const method = editingAdmin.id ? 'PUT' : 'POST';
+      const url = editingAdmin.id ? `/api/admins/${editingAdmin.id}` : '/api/admins';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: editingAdmin.username.trim(), password: editingAdmin.password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIsAdminModalOpen(false);
+        setEditingAdmin(null);
+        fetchAdmins();
+      } else {
+        setAdminError(data.error || 'Có lỗi xảy ra');
+      }
+    } catch {
+      setAdminError('Không thể kết nối tới máy chủ');
+    } finally {
+      setIsAdminSaving(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (id: number) => {
+    if (!confirm('Bạn có chắc muốn xóa tài khoản này?')) return;
+    try {
+      const res = await fetch(`/api/admins/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        fetchAdmins();
+      } else {
+        alert(data.error || 'Có lỗi xảy ra');
+      }
+    } catch {
+      alert('Không thể kết nối tới máy chủ');
     }
   };
 
@@ -317,6 +398,52 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <p className="text-slate-500 text-sm mb-1">Đã triển khai</p>
             <h2 className="text-4xl font-bold text-slate-800">{units.filter(u => u.is_deployed).length}</h2>
+          </div>
+        </div>
+
+        {/* Admin Accounts Section */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
+          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 className="font-bold text-slate-800">Tài khoản Quản trị</h3>
+            <button
+              onClick={() => { setEditingAdmin({}); setAdminError(''); setIsAdminModalOpen(true); }}
+              className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm"
+            >
+              <Plus size={16} /> Thêm tài khoản
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-slate-500 border-b border-slate-100">
+                  <th className="px-6 py-3 font-medium">Tên đăng nhập</th>
+                  <th className="px-6 py-3 font-medium">Ngày tạo</th>
+                  <th className="px-6 py-3 font-medium text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {admins.map(admin => (
+                  <tr key={admin.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                    <td className="px-6 py-3 text-slate-800 font-medium">{admin.username}</td>
+                    <td className="px-6 py-3 text-slate-500 text-sm">{new Date(admin.created_at).toLocaleDateString('vi-VN')}</td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => { setEditingAdmin({ id: admin.id, username: admin.username }); setAdminError(''); setIsAdminModalOpen(true); }}
+                        className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg mr-2"
+                      >
+                        Đổi mật khẩu
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAdmin(admin.id)}
+                        className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -636,6 +763,85 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                         Đang lưu...
                       </>
                     ) : 'Lưu đơn vị'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Account Modal */}
+      <AnimatePresence>
+        {isAdminModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAdminModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-slate-800">
+                  {editingAdmin?.id ? 'Đổi mật khẩu' : 'Thêm tài khoản mới'}
+                </h3>
+                <button onClick={() => setIsAdminModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <Square size={20} className="rotate-45" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAdmin} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tên đăng nhập</label>
+                  <input
+                    type="text"
+                    value={editingAdmin?.username || ''}
+                    onChange={(e) => setEditingAdmin(prev => prev ? { ...prev, username: e.target.value } : { username: e.target.value })}
+                    disabled={!!editingAdmin?.id}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+                    placeholder="Nhập tên đăng nhập"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    {editingAdmin?.id ? 'Mật khẩu mới' : 'Mật khẩu'}
+                  </label>
+                  <input
+                    type="password"
+                    value={editingAdmin?.password || ''}
+                    onChange={(e) => setEditingAdmin(prev => prev ? { ...prev, password: e.target.value } : { password: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    placeholder="Nhập mật khẩu (ít nhất 6 ký tự)"
+                  />
+                </div>
+
+                {adminError && (
+                  <div className="px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                    {adminError}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminModalOpen(false)}
+                    className="px-5 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAdminSaving}
+                    className="px-5 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAdminSaving ? 'Đang lưu...' : 'Lưu'}
                   </button>
                 </div>
               </form>

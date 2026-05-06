@@ -4,6 +4,7 @@ import { createClient } from "@libsql/client";
 import { put, del } from "@vercel/blob";
 import path from "path";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
 
 // Load environment variables
 dotenv.config({ path: ".env.local" });
@@ -46,6 +47,26 @@ async function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default admin if empty
+  const adminResult = await db.execute("SELECT COUNT(*) as count FROM admins");
+  if ((adminResult.rows[0].count as number) === 0) {
+    const hashedPassword = await bcrypt.hash("123456Aa@", 10);
+    await db.execute({
+      sql: "INSERT INTO admins (username, password) VALUES (?, ?)",
+      args: ["admin", hashedPassword],
+    });
+    console.log("Da tao tai khoan admin mac dinh.");
+  }
 
   // Seed default unit if empty
   const result = await db.execute("SELECT COUNT(*) as count FROM units");
@@ -206,6 +227,104 @@ async function startServer() {
     } catch (e) {
       console.error("Delete unit error:", e);
       res.status(500).json({ error: "Loi khi xoa don vi" });
+    }
+  });
+
+  // ========================
+  // API Routes - Admins
+  // ========================
+
+  // Login
+  app.post("/api/admins/login", async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: "Thieu ten dang nhap hoac mat khau" });
+    }
+    try {
+      const result = await db.execute({
+        sql: "SELECT * FROM admins WHERE username = ?",
+        args: [username],
+      });
+      if (result.rows.length === 0) {
+        return res.status(401).json({ error: "Ten dang nhap hoac mat khau khong dung" });
+      }
+      const admin = result.rows[0] as any;
+      const valid = await bcrypt.compare(password, admin.password);
+      if (!valid) {
+        return res.status(401).json({ error: "Ten dang nhap hoac mat khau khong dung" });
+      }
+      res.json({ id: admin.id, username: admin.username });
+    } catch (e) {
+      console.error("Admin login error:", e);
+      res.status(500).json({ error: "Loi khi dang nhap" });
+    }
+  });
+
+  // List all admins
+  app.get("/api/admins", async (req, res) => {
+    try {
+      const result = await db.execute("SELECT id, username, created_at FROM admins ORDER BY created_at DESC");
+      res.json(result.rows);
+    } catch (e) {
+      console.error("Get admins error:", e);
+      res.status(500).json({ error: "Loi khi lay danh sach admin" });
+    }
+  });
+
+  // Create admin
+  app.post("/api/admins", async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: "Thieu ten dang nhap hoac mat khau" });
+    }
+    try {
+      const hashed = await bcrypt.hash(password, 10);
+      const result = await db.execute({
+        sql: "INSERT INTO admins (username, password) VALUES (?, ?)",
+        args: [username, hashed],
+      });
+      res.json({ id: Number(result.lastInsertRowid), username });
+    } catch (e: any) {
+      console.error("Create admin error:", e);
+      if (e.message?.includes("UNIQUE constraint failed") || e.code === "SQLITE_CONSTRAINT") {
+        return res.status(400).json({ error: "Ten dang nhap da ton tai" });
+      }
+      res.status(500).json({ error: "Loi khi tao tai khoan" });
+    }
+  });
+
+  // Update admin
+  app.put("/api/admins/:id", async (req, res) => {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: "Thieu mat khau moi" });
+    }
+    try {
+      const hashed = await bcrypt.hash(password, 10);
+      await db.execute({
+        sql: "UPDATE admins SET password = ? WHERE id = ?",
+        args: [hashed, req.params.id],
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.error("Update admin error:", e);
+      res.status(500).json({ error: "Loi khi cap nhat tai khoan" });
+    }
+  });
+
+  // Delete admin
+  app.delete("/api/admins/:id", async (req, res) => {
+    try {
+      // Prevent deleting last admin
+      const countResult = await db.execute("SELECT COUNT(*) as count FROM admins");
+      if ((countResult.rows[0].count as number) <= 1) {
+        return res.status(400).json({ error: "Khong the xoa tai khoan cuoi cung" });
+      }
+      await db.execute({ sql: "DELETE FROM admins WHERE id = ?", args: [req.params.id] });
+      res.json({ success: true });
+    } catch (e) {
+      console.error("Delete admin error:", e);
+      res.status(500).json({ error: "Loi khi xoa tai khoan" });
     }
   });
 

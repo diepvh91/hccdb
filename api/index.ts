@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@libsql/client";
 import { put, del } from "@vercel/blob";
+import bcrypt from "bcryptjs";
 
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:local.db",
@@ -23,6 +24,25 @@ async function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const adminResult = await db.execute("SELECT COUNT(*) as count FROM admins");
+  if ((adminResult.rows[0].count as number) === 0) {
+    const hashedPassword = await bcrypt.hash("123456Aa@", 10);
+    await db.execute({
+      sql: "INSERT INTO admins (username, password) VALUES (?, ?)",
+      args: ["admin", hashedPassword],
+    });
+    console.log("Da tao tai khoan admin mac dinh.");
+  }
 
   const result = await db.execute("SELECT COUNT(*) as count FROM units");
   const count = result.rows[0].count as number;
@@ -141,6 +161,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (blobError: any) {
         console.error("Blob upload error:", blobError.message, blobError.stack);
         return res.status(500).json({ error: "Loi upload: " + blobError.message });
+      }
+    }
+
+    // Login
+    if (pathname === "/api/admins/login" && method === "POST") {
+      const { username, password } = req.body || {};
+      if (!username || !password) {
+        return res.status(400).json({ error: "Thieu ten dang nhap hoac mat khau" });
+      }
+      try {
+        const result = await db.execute({ sql: "SELECT * FROM admins WHERE username = ?", args: [username] });
+        if (result.rows.length === 0) {
+          return res.status(401).json({ error: "Ten dang nhap hoac mat khau khong dung" });
+        }
+        const admin = result.rows[0] as any;
+        const valid = await bcrypt.compare(password, admin.password);
+        if (!valid) {
+          return res.status(401).json({ error: "Ten dang nhap hoac mat khau khong dung" });
+        }
+        return res.status(200).json({ id: admin.id, username: admin.username });
+      } catch (e: any) {
+        console.error("Admin login error:", e);
+        return res.status(500).json({ error: "Loi khi dang nhap" });
+      }
+    }
+
+    // List admins
+    if (pathname === "/api/admins" && method === "GET") {
+      try {
+        const result = await db.execute("SELECT id, username, created_at FROM admins ORDER BY created_at DESC");
+        return res.status(200).json(result.rows);
+      } catch (e) {
+        return res.status(500).json({ error: "Loi khi lay danh sach admin" });
+      }
+    }
+
+    // Create admin
+    if (pathname === "/api/admins" && method === "POST") {
+      const { username, password } = req.body || {};
+      if (!username || !password) {
+        return res.status(400).json({ error: "Thieu ten dang nhap hoac mat khau" });
+      }
+      try {
+        const hashed = await bcrypt.hash(password, 10);
+        const result = await db.execute({ sql: "INSERT INTO admins (username, password) VALUES (?, ?)", args: [username, hashed] });
+        return res.status(201).json({ id: Number(result.lastInsertRowid), username });
+      } catch (e: any) {
+        if (e.message?.includes("UNIQUE constraint failed")) {
+          return res.status(400).json({ error: "Ten dang nhap da ton tai" });
+        }
+        return res.status(500).json({ error: "Loi khi tao tai khoan" });
+      }
+    }
+
+    // Update admin password
+    const adminMatch = pathname.match(/^\/api\/admins\/(\d+)$/);
+    if (adminMatch && method === "PUT") {
+      const { password } = req.body || {};
+      if (!password) {
+        return res.status(400).json({ error: "Thieu mat khau moi" });
+      }
+      try {
+        const hashed = await bcrypt.hash(password, 10);
+        await db.execute({ sql: "UPDATE admins SET password = ? WHERE id = ?", args: [hashed, adminMatch[1]] });
+        return res.status(200).json({ success: true });
+      } catch (e) {
+        return res.status(500).json({ error: "Loi khi cap nhat tai khoan" });
+      }
+    }
+
+    // Delete admin
+    if (adminMatch && method === "DELETE") {
+      try {
+        const countResult = await db.execute("SELECT COUNT(*) as count FROM admins");
+        if ((countResult.rows[0].count as number) <= 1) {
+          return res.status(400).json({ error: "Khong the xoa tai khoan cuoi cung" });
+        }
+        await db.execute({ sql: "DELETE FROM admins WHERE id = ?", args: [adminMatch[1]] });
+        return res.status(200).json({ success: true });
+      } catch (e) {
+        return res.status(500).json({ error: "Loi khi xoa tai khoan" });
       }
     }
 
