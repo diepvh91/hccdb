@@ -49,8 +49,98 @@ interface Message {
   text: string;
 }
 
-// --- Components ---
+// --- Admin Login Component ---
+const AdminLogin = ({ onLogin, onBack }: { onLogin: () => void; onBack: () => void }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!username.trim() || !password.trim()) {
+      setError('Vui lòng nhập tên đăng nhập và mật khẩu');
+      return;
+    }
+
+    if (username === 'admin' && password === '123456Aa@') {
+      onLogin();
+    } else {
+      setError('Tên đăng nhập hoặc mật khẩu không đúng');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-3 md:p-5 font-sans">
+      <div className="w-full max-w-[500px]">
+        <button
+          onClick={onBack}
+          className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors"
+        >
+          <ChevronLeft size={20} />
+          <span className="text-sm font-medium">Quay lại trang chủ</span>
+        </button>
+
+        <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="bg-gradient-to-br from-red-600 to-red-800 px-8 py-6 text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <Settings size={28} className="text-white" />
+            </div>
+            <h1 className="text-white text-xl font-bold">Đăng nhập Quản trị</h1>
+            <p className="text-white/70 text-sm mt-1">Nhập thông tin để truy cập bảng điều khiển</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-8 space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Tên đăng nhập
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                placeholder="Nhập tên đăng nhập"
+                autoComplete="username"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Mật khẩu
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                placeholder="Nhập mật khẩu"
+                autoComplete="current-password"
+              />
+            </div>
+
+            {error && (
+              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold rounded-xl hover:from-red-700 hover:to-red-800 transition-all shadow-lg shadow-red-500/20"
+            >
+              Đăng nhập
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Admin Dashboard ---
 const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [units, setUnits] = useState<Unit[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1074,7 +1164,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
 };
 
 export default function App() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminView, setAdminView] = useState<'closed' | 'login' | 'dashboard'>('closed');
   const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -1103,8 +1193,12 @@ export default function App() {
     fetchUnits();
   }, []);
 
-  if (isAdmin) {
-    return <AdminDashboard onBack={() => { setIsAdmin(false); fetchUnits(); }} />;
+  if (adminView === 'dashboard') {
+    return <AdminDashboard onBack={() => setAdminView('closed')} />;
+  }
+
+  if (adminView === 'login') {
+    return <AdminLogin onLogin={() => setAdminView('dashboard')} onBack={() => setAdminView('closed')} />;
   }
 
   if (isLoading) {
@@ -1129,7 +1223,7 @@ export default function App() {
             <h2 className="text-xl font-bold text-slate-800 mb-2">Chưa có dữ liệu đơn vị</h2>
             <p className="text-slate-500 mb-6">Hệ thống hiện chưa có đơn vị nào được khởi tạo. Vui lòng đăng nhập vào quản trị để thêm đơn vị mới.</p>
             <button
-              onClick={() => setIsAdmin(true)}
+              onClick={() => setAdminView('login')}
               className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
             >
               Đăng nhập Quản trị
@@ -1195,7 +1289,7 @@ export default function App() {
               </div>
             </div>
             <button
-              onClick={() => setIsAdmin(true)}
+              onClick={() => setAdminView('login')}
               className="shrink-0 ml-4 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-bold uppercase tracking-wider rounded-xl border border-white/30 transition-all"
             >
               Quản trị
@@ -1204,7 +1298,7 @@ export default function App() {
 
           {/* Chat Frame */}
           <div className="flex-1 min-h-0">
-            <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setIsAdmin(true)} />
+            <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setAdminView('login')} />
           </div>
         </div>
       </div>
