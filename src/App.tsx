@@ -950,106 +950,191 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
     }
   };
 
-  // MediaRecorder refs for server-side STT (mobile-compatible)
+  // Hybrid approach: SpeechRecognition (desktop) + MediaRecorder fallback (mobile)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const startListening = async () => {
+  const isMobileBrowser = () => {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  };
+
+  const startListening = () => {
     // Stop AI speaking if it is
     stopSpeaking();
 
-    try {
-      // Request microphone permission first
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      audioStreamRef.current = stream;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      // Set up volume meter
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioContextRef.current = audioContext;
-      const analyser = audioContext.createAnalyser();
-      analyserRef.current = analyser;
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      analyser.fftSize = 256;
+    // Desktop: use SpeechRecognition API (works reliably)
+    if (SpeechRecognition) {
+      startSpeechRecognition(SpeechRecognition);
+      return;
+    }
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+    // Mobile fallback: use MediaRecorder + server STT
+    startMediaRecorder();
+  };
 
-      const updateVolume = () => {
-        if (!analyserRef.current || !isListening) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-        setVolume(sum / bufferLength);
-        if (isListening) requestAnimationFrame(updateVolume);
-      };
-      updateVolume();
+  const startSpeechRecognition = (SpeechRecognition: any) => {
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = 'vi-VN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-      // Record audio
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : 'audio/mp4';
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mediaRecorder;
-
-      const chunks: Blob[] = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: mimeType });
-        chunks.length = 0;
-
-        if (blob.size < 1000) return;
-
-        // Convert to base64
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64 = (reader.result as string).split(",")[1];
-          try {
-            const res = await fetch("/api/speech-to-text", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ audioData: base64, mimeType }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.transcript?.trim()) {
-                setInput(data.transcript);
-                setTimeout(() => handleSend(data.transcript), 500);
-              }
-            } else {
-              console.error("STT API error:", await res.text());
-            }
-          } catch (e) {
-            console.error("STT fetch error:", e);
-          }
+    // Set up volume meter using getUserMedia
+    let volumeStream: MediaStream | null = null;
+    (async () => {
+      try {
+        volumeStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = audioContext;
+        const analyser = audioContext.createAnalyser();
+        analyserRef.current = analyser;
+        const source = audioContext.createMediaStreamSource(volumeStream);
+        source.connect(analyser);
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        const updateVolume = () => {
+          if (!analyserRef.current || !isListening) return;
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          setVolume(sum / bufferLength);
+          if (isListening) requestAnimationFrame(updateVolume);
         };
-        reader.readAsDataURL(blob);
-      };
+        updateVolume();
+      } catch {
+        // Volume meter optional - ignore errors
+      }
+    })();
 
+    recognition.onstart = () => {
       setIsListening(true);
       recordActivityRef.current();
-      mediaRecorder.start();
+    };
 
-      // Auto-stop after 15 seconds
-      setTimeout(() => {
-        if (mediaRecorderRef.current?.state === "recording") {
-          stopListening();
-        }
-      }, 15000);
-    } catch (err) {
-      console.error("Micro access error:", err);
-      alert("Không thể truy cập micro. Vui lòng kiểm tra quyền truy cập micro trong cài đặt trình duyệt.");
-    }
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setTimeout(() => handleSend(transcript), 500);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("SpeechRecognition error:", event.error);
+      // Fallback to MediaRecorder on any error
+      if (volumeStream) volumeStream.getTracks().forEach(t => t.stop());
+      if (event.error !== 'aborted') {
+        startMediaRecorder();
+      }
+    };
+
+    recognition.onend = () => {
+      stopListening();
+    };
+
+    recognition.start();
+  };
+
+  const startMediaRecorder = () => {
+    (async () => {
+      try {
+        // Clear previous state
+        if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        audioStreamRef.current = stream;
+
+        // Volume meter
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = audioContext;
+        const analyser = audioContext.createAnalyser();
+        analyserRef.current = analyser;
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        const updateVolume = () => {
+          if (!analyserRef.current || !isListening) return;
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          setVolume(sum / bufferLength);
+          if (isListening) requestAnimationFrame(updateVolume);
+        };
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/mp4';
+        const mediaRecorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorderRef.current = mediaRecorder;
+
+        const chunks: Blob[] = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: mimeType });
+          chunks.length = 0;
+          if (blob.size < 1000) return;
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64 = (reader.result as string).split(",")[1];
+            try {
+              const res = await fetch("/api/speech-to-text", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ audioData: base64, mimeType }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.transcript?.trim()) {
+                  setInput(data.transcript);
+                  setTimeout(() => handleSend(data.transcript), 500);
+                }
+              } else {
+                console.error("STT error:", await res.text());
+              }
+            } catch (e) {
+              console.error("STT fetch error:", e);
+            }
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        setIsListening(true);
+        recordActivityRef.current();
+        updateVolume();
+        mediaRecorder.start();
+
+        // Auto-stop after 15 seconds
+        autoStopTimerRef.current = setTimeout(() => {
+          if (mediaRecorderRef.current?.state === "recording") {
+            stopListening();
+          }
+        }, 15000);
+      } catch (err) {
+        console.error("MediaRecorder error:", err);
+        alert("Không thể truy cập micro. Vui lòng kiểm tra quyền micro trong cài đặt trình duyệt.");
+      }
+    })();
   };
 
   const stopListening = () => {
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
     }
     if (audioStreamRef.current) {
       audioStreamRef.current.getTracks().forEach(track => track.stop());
@@ -1057,7 +1142,9 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
     }
     if (audioContextRef.current) {
       audioContextRef.current.close();
+      audioContextRef.current = null;
     }
+    analyserRef.current = null;
     setIsListening(false);
     setVolume(0);
   };
