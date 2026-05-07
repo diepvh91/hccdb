@@ -885,10 +885,6 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
   useEffect(() => {
     greetFnRef.current = playGreeting;
   }, [playGreeting, greetFnRef]);
-  // Wire up recordActivity (defined in App, passed via ref)
-  useEffect(() => {
-    recordActivityRef.current = recordActivity;
-  }, [recordActivityRef]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechQueueRef = useRef<string[]>([]);
   const isProcessingQueueRef = useRef(false);
@@ -1519,6 +1515,11 @@ export default function App() {
   const lastActivityRef = useRef<number>(Date.now());
   const greetFnRef = useRef<() => Promise<void>>(() => {});
   const recordActivityRef = useRef<() => void>(() => {});
+
+  // Set recordActivity on ref so ChatInterface can call it
+  useEffect(() => {
+    recordActivityRef.current = recordActivity;
+  });
 
   const resetSession = () => {
     setSessionActive(false);
