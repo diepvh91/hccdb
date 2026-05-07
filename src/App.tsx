@@ -1191,25 +1191,28 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
   };
 
   const stopSpeaking = () => {
+    // Cancel all Web Speech API utterances first
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
+    // Stop and clear the primary audio element
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current = null;
     }
+    // Stop Web Audio API source
     if (currentSourceRef.current) {
       try {
         currentSourceRef.current.stop();
-      } catch (e) {
-        // Ignore
-      }
+      } catch (e) { /* ignore */ }
       currentSourceRef.current = null;
     }
-    setIsSpeaking(false);
-    // Clear queue on stop
+    // Clear the speech queue
     speechQueueRef.current = [];
     isProcessingQueueRef.current = false;
+    // Immediately update state to stop video — no need to wait for onended
+    setIsSpeaking(false);
   };
 
   const handleSend = async (overrideInput?: string) => {
