@@ -1100,13 +1100,16 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
     return new Promise<void>((resolve, reject) => {
       const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
       audio.playbackRate = 1.0;
+      audioRef.current = audio;
       audio.onplay = () => setIsSpeaking(true);
       audio.onended = () => {
+        audioRef.current = null;
         setIsSpeaking(false);
         resolve();
       };
       audio.onerror = (e) => {
         console.error("MP3 playback error:", e);
+        audioRef.current = null;
         setIsSpeaking(false);
         reject(new Error("Playback failed"));
       };
