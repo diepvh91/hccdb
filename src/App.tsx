@@ -943,6 +943,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
 
     recognitionRef.current.onstart = () => {
       setIsListening(true);
+      recordActivity();
       startVolumeMeter();
     };
 
@@ -1198,6 +1199,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
     const userMsg: Message = { role: 'user', text: textToSend };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    recordActivity();
     setIsAiThinking(true);
     
     // Stop any current speaking and clear queue
@@ -1366,9 +1368,65 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
   );
 };
 
+// --- Motion Detection Hook ---
+const useMotionDetection = (videoRef: React.RefObject<HTMLVideoElement | null>, onMotion: () => void) => {
+  useEffect(() => {
+    let animationId: number;
+    let lastCheck = Date.now();
+
+    const detectMotion = () => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth) {
+        animationId = requestAnimationFrame(detectMotion);
+        return;
+      }
+
+      // Check every 500ms to avoid performance hit
+      if (Date.now() - lastCheck < 500) {
+        animationId = requestAnimationFrame(detectMotion);
+        return;
+      }
+      lastCheck = Date.now();
+
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 80;
+        canvas.height = 60;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Calculate brightness: iterate pixels, count bright ones
+        let bright = 0;
+        for (let i = 0; i < frame.data.length; i += 12) {
+          const r = frame.data[i];
+          const g = frame.data[i + 1];
+          const b = frame.data[i + 2];
+          const brightness = (r + g + b) / 3;
+          if (brightness > 40) bright++;
+        }
+
+        // If > 15% pixels are bright → someone is present
+        if (bright / (canvas.width * canvas.height) > 0.15) {
+          onMotion();
+        }
+      } catch {
+        // Ignore canvas errors
+      }
+
+      animationId = requestAnimationFrame(detectMotion);
+    };
+
+    animationId = requestAnimationFrame(detectMotion);
+    return () => cancelAnimationFrame(animationId);
+  }, [videoRef, onMotion]);
+};
+
 // --- User Webcam Component ---
-const UserWebcam = () => {
+const UserWebcam = ({ onMotionDetected }: { onMotionDetected: () => void }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onMotionRef = useRef(onMotionDetected);
+  onMotionRef.current = onMotionDetected;
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -1397,6 +1455,8 @@ const UserWebcam = () => {
     };
   }, []);
 
+  useMotionDetection(videoRef, onMotionRef.current);
+
   return (
     <div className="absolute top-4 right-4 w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden shadow-2xl border-4 border-white/50 z-10">
       <video
@@ -1418,6 +1478,61 @@ export default function App() {
   const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
+
+  // Session management
+  const [sessionActive, setSessionActive] = useState(false);
+  const [greetingDone, setGreetingDone] = useState(false);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const resetSession = () => {
+    setSessionActive(false);
+    setGreetingDone(false);
+    lastActivityRef.current = Date.now();
+  };
+
+  const recordActivity = () => {
+    lastActivityRef.current = Date.now();
+    if (!sessionActive) {
+      setSessionActive(true);
+    }
+  };
+
+  const handleGreet = async () => {
+    const greeting = "Xin chào! Hãy bấm nút Nói màu xanh bắt đầu.";
+    try {
+      setIsSpeaking(true);
+      const audioData = await generateSpeech(greeting);
+      if (audioData) {
+        const audio = new Audio(`data:audio/mp3;base64,${audioData}`);
+        audio.playbackRate = 1.0;
+        await audio.play();
+        await new Promise(resolve => { audio.onended = resolve; });
+      }
+    } catch (e) {
+      console.error("Greeting TTS error:", e);
+    } finally {
+      setIsSpeaking(false);
+    }
+  };
+
+  // Inactivity timer: check every 10s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (sessionActive && Date.now() - lastActivityRef.current > 2 * 60 * 1000) {
+        resetSession();
+      }
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [sessionActive]);
+
+  // Motion detection callback
+  const handleMotionDetected = () => {
+    if (!sessionActive && !greetingDone) {
+      setSessionActive(true);
+      setGreetingDone(true);
+      handleGreet();
+    }
+  };
 
   const fetchUnits = () => {
     setIsLoading(true);
@@ -1522,7 +1637,7 @@ export default function App() {
             </div>
           </div>
 
-          <UserWebcam />
+          <UserWebcam onMotionDetected={handleMotionDetected} />
         </div>
 
         {/* Right Column: Unit Info + Chat */}
