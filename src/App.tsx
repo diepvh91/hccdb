@@ -850,7 +850,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnRef }: { unit: Unit, isSpeaking: boolean, setIsSpeaking: (s: boolean) => void, onAdminClick: () => void, greetFnRef: React.MutableRefObject<() => Promise<void>> }) => {
+const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnRef, recordActivityRef }: { unit: Unit, isSpeaking: boolean, setIsSpeaking: (s: boolean) => void, onAdminClick: () => void, greetFnRef: React.MutableRefObject<() => Promise<void>>, recordActivityRef: React.MutableRefObject<() => void> }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -885,6 +885,10 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
   useEffect(() => {
     greetFnRef.current = playGreeting;
   }, [playGreeting, greetFnRef]);
+  // Wire up recordActivity (defined in App, passed via ref)
+  useEffect(() => {
+    recordActivityRef.current = recordActivity;
+  }, [recordActivityRef]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechQueueRef = useRef<string[]>([]);
   const isProcessingQueueRef = useRef(false);
@@ -967,7 +971,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
 
     recognitionRef.current.onstart = () => {
       setIsListening(true);
-      recordActivity();
+      recordActivityRef.current();
       startVolumeMeter();
     };
 
@@ -1229,7 +1233,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
     const userMsg: Message = { role: 'user', text: textToSend };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    recordActivity();
+    recordActivityRef.current();
     setIsAiThinking(true);
     
     // Stop any current speaking and clear queue
@@ -1514,6 +1518,7 @@ export default function App() {
   const [greetingDone, setGreetingDone] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
   const greetFnRef = useRef<() => Promise<void>>(() => {});
+  const recordActivityRef = useRef<() => void>(() => {});
 
   const resetSession = () => {
     setSessionActive(false);
@@ -1678,7 +1683,7 @@ export default function App() {
 
           {/* Chat Frame */}
           <div className="flex-1 min-h-0">
-            <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setAdminView('login')} greetFnRef={greetFnRef} />
+            <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setAdminView('login')} greetFnRef={greetFnRef} recordActivityRef={recordActivityRef} />
           </div>
         </div>
       </div>
