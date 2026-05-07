@@ -850,7 +850,7 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit: Unit, isSpeaking: boolean, setIsSpeaking: (s: boolean) => void, onAdminClick: () => void }) => {
+const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnRef }: { unit: Unit, isSpeaking: boolean, setIsSpeaking: (s: boolean) => void, onAdminClick: () => void, greetFnRef: React.MutableRefObject<() => Promise<void>> }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -861,6 +861,30 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick }: { unit
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const playGreeting = async () => {
+    const greeting = "Xin chào, bạn cần hỏi về thủ tục hành chính nào? Để bắt đầu, hãy bấm nút Nói màu xanh trên màn hình.";
+    try {
+      setMessages(prev => [...prev, { role: 'ai', text: greeting }]);
+      setIsSpeaking(true);
+      const audioData = await generateSpeech(greeting);
+      if (audioData) {
+        const audio = new Audio(`data:audio/mp3;base64,${audioData}`);
+        audio.playbackRate = 1.0;
+        await audio.play();
+        await new Promise(resolve => { audio.onended = resolve; });
+      }
+    } catch (e) {
+      console.error("Greeting TTS error:", e);
+    } finally {
+      setIsSpeaking(false);
+    }
+  };
+
+  // Wire up greeting function
+  useEffect(() => {
+    greetFnRef.current = playGreeting;
+  }, [playGreeting, greetFnRef]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speechQueueRef = useRef<string[]>([]);
   const isProcessingQueueRef = useRef(false);
@@ -1483,6 +1507,7 @@ export default function App() {
   const [sessionActive, setSessionActive] = useState(false);
   const [greetingDone, setGreetingDone] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
+  const greetFnRef = useRef<() => Promise<void>>(() => {});
 
   const resetSession = () => {
     setSessionActive(false);
@@ -1494,24 +1519,6 @@ export default function App() {
     lastActivityRef.current = Date.now();
     if (!sessionActive) {
       setSessionActive(true);
-    }
-  };
-
-  const handleGreet = async () => {
-    const greeting = "Xin chào! Hãy bấm nút Nói màu xanh bắt đầu.";
-    try {
-      setIsSpeaking(true);
-      const audioData = await generateSpeech(greeting);
-      if (audioData) {
-        const audio = new Audio(`data:audio/mp3;base64,${audioData}`);
-        audio.playbackRate = 1.0;
-        await audio.play();
-        await new Promise(resolve => { audio.onended = resolve; });
-      }
-    } catch (e) {
-      console.error("Greeting TTS error:", e);
-    } finally {
-      setIsSpeaking(false);
     }
   };
 
@@ -1530,7 +1537,7 @@ export default function App() {
     if (!sessionActive && !greetingDone) {
       setSessionActive(true);
       setGreetingDone(true);
-      handleGreet();
+      greetFnRef.current();
     }
   };
 
@@ -1665,7 +1672,7 @@ export default function App() {
 
           {/* Chat Frame */}
           <div className="flex-1 min-h-0">
-            <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setAdminView('login')} />
+            <ChatInterface unit={currentUnit} isSpeaking={isSpeaking} setIsSpeaking={setIsSpeaking} onAdminClick={() => setAdminView('login')} greetFnRef={greetFnRef} />
           </div>
         </div>
       </div>
