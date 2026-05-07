@@ -952,8 +952,9 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
     if (!SpeechRecognition) {
-      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói.");
+      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói. Vui lòng dùng Chrome trên điện thoại.");
       return;
     }
 
@@ -974,12 +975,16 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
     recognitionRef.current.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       setInput(transcript);
-      // Automatically send after a short delay to feel natural
       setTimeout(() => handleSend(transcript), 500);
     };
 
     recognitionRef.current.onerror = (event: any) => {
       console.error("Speech Recognition Error:", event.error);
+      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+        alert("Micro bị chặn. Vui lòng:\n1. Nhấn 🔒 hoặc 🌐 trên thanh địa chỉ\n2. Bật Microphone = Allow\n3. Tải lại trang");
+      } else if (event.error === 'audio-not-found') {
+        alert("Không tìm thấy micro. Vui lòng kết nối micro và thử lại.");
+      }
       stopListening();
     };
 
