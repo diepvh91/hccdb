@@ -332,6 +332,50 @@ async function startServer() {
   // API Routes - File Upload
   // ========================
 
+  app.post("/api/speech-to-text", async (req, res) => {
+    try {
+      const { audioData, mimeType } = req.body;
+      if (!audioData) {
+        return res.status(400).json({ error: "Thieu du lieu am thanh" });
+      }
+
+      // Use Gemini multimodal model for speech recognition
+      const buffer = Buffer.from(audioData, "base64");
+
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+        // Convert audio to content for Gemini
+        const result = await ai.models.generateContent({
+          model: "gemini-2.5-flash-preview-0514",
+          contents: [{
+            inlineData: {
+              mimeType: mimeType || "audio/webm",
+              data: audioData,
+            }
+          }],
+          config: {
+            systemInstruction: "Bạn là trợ lý nhận dạng giọng nói tiếng Việt. Nghe âm thanh và trả về chính xác nội dung lời nói bằng tiếng Việt, không thêm giải thích.",
+          }
+        });
+
+        const transcript = result.text?.trim() || "";
+        if (!transcript) {
+          return res.status(200).json({ transcript: "" });
+        }
+        console.log(`Speech-to-text: "${transcript}"`);
+        res.json({ transcript });
+      } catch (aiError: any) {
+        console.error("Gemini STT error:", aiError.message);
+        res.status(500).json({ error: "Loi khi nhan dang am thanh: " + aiError.message });
+      }
+    } catch (error) {
+      console.error("Speech-to-text error:", error);
+      res.status(500).json({ error: "Loi khi xu ly am thanh" });
+    }
+  });
+
   app.post("/api/upload", async (req, res) => {
     try {
       const { fileData, fileName, contentType, field } = req.body;

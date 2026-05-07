@@ -3,6 +3,8 @@ import { createClient } from "@libsql/client";
 import { put, del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:local.db",
   authToken: process.env.TURSO_AUTH_TOKEN,
@@ -142,6 +144,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       await db.execute({ sql: "DELETE FROM units WHERE id = ?", args: [id] });
       return res.status(200).json({ success: true });
+    }
+
+    if (pathname === "/api/speech-to-text" && method === "POST") {
+      const { audioData, mimeType } = req.body || {};
+      if (!audioData) {
+        return res.status(400).json({ error: "Thieu du lieu am thanh" });
+      }
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+        const result = await ai.models.generateContent({
+          model: "gemini-2.5-flash-preview-0514",
+          contents: [{
+            inlineData: {
+              mimeType: mimeType || "audio/webm",
+              data: audioData,
+            }
+          }],
+          config: {
+            systemInstruction: "Bạn là trợ lý nhận dạng giọng nói tiếng Việt. Nghe âm thanh và trả về chính xác nội dung lời nói bằng tiếng Việt, không thêm giải thích.",
+          }
+        });
+        const transcript = result.text?.trim() || "";
+        return res.status(200).json({ transcript });
+      } catch (e: any) {
+        console.error("Speech-to-text error:", e.message);
+        return res.status(500).json({ error: "Loi nhan dang am thanh: " + e.message });
+      }
     }
 
     if (pathname === "/api/upload" && method === "POST") {
