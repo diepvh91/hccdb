@@ -1621,8 +1621,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-3 md:p-5 font-sans">
       <div className="w-full max-w-[1600px] flex flex-col lg:flex-row gap-4 md:gap-5" style={{ height: 'calc(100vh - 40px)' }}>
-        {/* Left Column: AI Character View */}
-        <div className="relative w-full lg:w-[40%] bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group flex items-center justify-center">
+        {/* Left Column: AI Character View — on mobile: side-by-side with chat */}
+        <div className="relative w-full md:w-[40%] lg:w-[40%] h-[45vh] lg:h-full bg-slate-200 rounded-3xl overflow-hidden shadow-2xl border-4 border-white group flex items-center justify-center order-1">
           <AnimatePresence mode="wait">
             {isSpeaking ? (
               <motion.video
@@ -1652,7 +1652,7 @@ export default function App() {
           <div className="absolute top-4 left-4">
             <div className="px-3 py-1 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold rounded-full flex items-center gap-1.5 uppercase tracking-wider border border-white/10">
               <span className={`w-1.5 h-1.5 rounded-full ${isSpeaking ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
-              Trợ lý AI
+              AI
             </div>
           </div>
 
@@ -1660,7 +1660,7 @@ export default function App() {
         </div>
 
         {/* Right Column: Unit Info + Chat */}
-        <div className="w-full lg:w-[60%] flex flex-col gap-4 md:gap-5">
+        <div className="w-full md:w-[60%] lg:w-[60%] flex flex-col gap-4 md:gap-5 order-2">
           {/* Header: Unit Info + Admin Button */}
           <div className="relative bg-gradient-to-br from-red-600 to-red-800 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 px-6 py-4 flex items-center">
             <div className="flex items-center gap-3 flex-1 min-w-0">
