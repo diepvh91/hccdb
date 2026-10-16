@@ -476,7 +476,6 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                   <th className="px-6 py-4 font-semibold">Tiêu đề</th>
                   <th className="px-6 py-4 font-semibold text-center">Ảnh</th>
                   <th className="px-6 py-4 font-semibold text-center">Video</th>
-                  <th className="px-6 py-4 font-semibold text-center">PDF</th>
                   <th className="px-6 py-4 font-semibold">Ngày triển khai</th>
                   <th className="px-6 py-4 font-semibold">Thao tác</th>
                 </tr>
@@ -492,9 +491,6 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     </td>
                     <td className="px-6 py-4 text-center">
                       {(unit.video_url && unit.video_url.length > 0) ? <CheckCircle2 className="inline text-green-500" size={18} /> : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {(unit.pdf_url && unit.pdf_url.length > 0) ? <CheckCircle2 className="inline text-green-500" size={18} /> : '-'}
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-sm">
                       {unit.is_deployed ? <span className="text-green-600">Đã triển khai</span> : '-'}
@@ -690,48 +686,6 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">File PDF tài liệu</label>
-                  <div className="flex flex-col gap-2">
-                    <div className={`flex items-center gap-4 p-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer relative ${isUploading === 'pdf_url' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-blue-400'}`}>
-                      <input 
-                        type="file" 
-                        accept=".pdf"
-                        disabled={!!isUploading}
-                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                        onChange={(e) => handleFileUpload(e, 'pdf_url')}
-                      />
-                      <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
-                        {isUploading === 'pdf_url' ? <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <FileText size={24} />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-700">{isUploading === 'pdf_url' ? 'Đang xử lý tài liệu...' : 'Click để chọn file PDF'}</p>
-                        <p className="text-xs text-slate-400">{(previews.pdf_url || editingUnit?.pdf_url) ? 'Đã có tài liệu PDF' : 'Chưa có file'}</p>
-                      </div>
-                      {(previews.pdf_url || editingUnit?.pdf_url) && !isUploading && <CheckCircle2 className="text-green-500" size={20} />}
-                    </div>
-                    {(previews.pdf_url || editingUnit?.pdf_url) && (
-                      <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-emerald-600 shadow-sm">
-                          <FileText size={18} />
-                        </div>
-                        <span className="text-xs text-emerald-800 font-medium flex-1">Tài liệu PDF đã tải lên</span>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setEditingUnit(prev => ({ ...prev, pdf_url: '' }));
-                            if (previews.pdf_url) URL.revokeObjectURL(previews.pdf_url);
-                            setPreviews(prev => ({ ...prev, pdf_url: '' }));
-                          }}
-                          className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Nội dung huấn luyện AI</label>
                   <textarea 
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none min-h-[120px]"
@@ -861,6 +815,15 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const knowledgeBaseRef = useRef<string>('');
+
+  // Fetch knowledge base once on mount
+  useEffect(() => {
+    fetch('/data/knowledge_base.md')
+      .then(res => res.ok ? res.text() : '')
+      .then(text => { knowledgeBaseRef.current = text; console.log(`Knowledge base loaded: ${text.length} chars`); })
+      .catch(() => console.warn('Knowledge base not found'));
+  }, []);
 
   const playGreeting = async () => {
     const greeting = "Xin chào, bạn cần hỏi về thủ tục hành chính nào? Để bắt đầu, hãy bấm nút Nói màu xanh trên màn hình.";
@@ -1349,7 +1312,7 @@ const ChatInterface = ({ unit, isSpeaking, setIsSpeaking, onAdminClick, greetFnR
     let fullAiResponse = '';
 
     try {
-      const stream = getChatResponseStream(textToSend, unit.training_text, unit.pdf_url, unit.name);
+      const stream = getChatResponseStream(textToSend, unit.training_text, knowledgeBaseRef.current, unit.name);
       
       setIsAiThinking(false); // Hide thinking indicator once stream starts
 
