@@ -1,8 +1,29 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
+let cachedApiKey: string | null = null;
+
+async function getApiKey(): Promise<string> {
+  if (cachedApiKey) return cachedApiKey;
+  try {
+    const res = await fetch('/api/settings/api-key-value');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.apiKey) {
+        cachedApiKey = data.apiKey;
+        return cachedApiKey;
+      }
+    }
+  } catch {}
+  return process.env.GEMINI_API_KEY || "";
+}
+
+export function clearApiKeyCache() {
+  cachedApiKey = null;
+}
+
 export async function generateSpeech(text: string) {
   try {
-    const ttsApiKey = process.env.GEMINI_API_KEY || "";
+    const ttsApiKey = await getApiKey();
     const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsApiKey}`;
     const response = await fetch(ttsUrl, {
       method: "POST",
@@ -44,7 +65,7 @@ export async function generateSpeech(text: string) {
 
 export async function* getChatResponseStream(message: string, trainingContext: string, knowledgeBase: string = "", unitName: string = "Đơn vị") {
   try {
-    const apiKey = process.env.GEMINI_API_KEY || "";
+    const apiKey = await getApiKey();
 
     console.log("🔧 Chat API Call Debug:");
     console.log(`   - API Key: ${apiKey ? `✅ Có (${apiKey.substring(0, 10)}...)` : "❌ KHÔNG CÓ"}`);

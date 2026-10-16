@@ -27,7 +27,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getChatResponse, getChatResponseStream, generateSpeech } from './services/gemini';
+import { getChatResponse, getChatResponseStream, generateSpeech, clearApiKeyCache } from './services/gemini';
 
 // --- Types ---
 interface Unit {
@@ -171,9 +171,16 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [isAdminSaving, setIsAdminSaving] = useState(false);
   const [adminError, setAdminError] = useState('');
 
+  // API Key settings
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiKeyInfo, setApiKeyInfo] = useState<{ hasKey: boolean; maskedKey: string }>({ hasKey: false, maskedKey: '' });
+  const [isApiKeySaving, setIsApiKeySaving] = useState(false);
+  const [apiKeyMsg, setApiKeyMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   useEffect(() => {
     fetchUnits();
     fetchAdmins();
+    fetchApiKey();
     // Cleanup object URLs on unmount
     return () => {
       Object.values(previews).forEach((url: any) => {
@@ -199,6 +206,45 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       setAdmins(data);
     } catch (error) {
       console.error("Error fetching admins:", error);
+    }
+  };
+
+  const fetchApiKey = async () => {
+    try {
+      const res = await fetch('/api/settings/api-key');
+      const data = await res.json();
+      setApiKeyInfo(data);
+    } catch (error) {
+      console.error("Error fetching API key info:", error);
+    }
+  };
+
+  const handleSaveApiKey = async () => {
+    if (!apiKeyInput.trim()) {
+      setApiKeyMsg({ type: 'error', text: 'Vui lòng nhập API key' });
+      return;
+    }
+    setIsApiKeySaving(true);
+    setApiKeyMsg(null);
+    try {
+      const res = await fetch('/api/settings/api-key', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: apiKeyInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setApiKeyMsg({ type: 'success', text: 'Cập nhật API key thành công!' });
+        setApiKeyInput('');
+        clearApiKeyCache();
+        fetchApiKey();
+      } else {
+        setApiKeyMsg({ type: 'error', text: data.error || 'Có lỗi xảy ra' });
+      }
+    } catch {
+      setApiKeyMsg({ type: 'error', text: 'Không thể kết nối tới máy chủ' });
+    } finally {
+      setIsApiKeySaving(false);
     }
   };
 
@@ -395,6 +441,46 @@ const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <p className="text-slate-500 text-sm mb-1">Đã triển khai</p>
             <h2 className="text-4xl font-bold text-slate-800">{units.filter(u => u.is_deployed).length}</h2>
+          </div>
+        </div>
+
+        {/* API Key Settings */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
+          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Settings size={18} className="text-slate-500" /> Cài đặt API Key
+            </h3>
+            {apiKeyInfo.hasKey && (
+              <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                Đang sử dụng: {apiKeyInfo.maskedKey}
+              </span>
+            )}
+          </div>
+          <div className="p-4">
+            <p className="text-sm text-slate-500 mb-3">
+              Dán API key của Google Gemini vào đây. Key sẽ được lưu và sử dụng ngay lập tức.
+            </p>
+            <div className="flex gap-3">
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => { setApiKeyInput(e.target.value); setApiKeyMsg(null); }}
+                placeholder="Dán API key tại đây (ví dụ: AIzaSy...)"
+                className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+              />
+              <button
+                onClick={handleSaveApiKey}
+                disabled={isApiKeySaving || !apiKeyInput.trim()}
+                className="px-6 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {isApiKeySaving ? 'Đang lưu...' : 'Cập nhật'}
+              </button>
+            </div>
+            {apiKeyMsg && (
+              <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm ${apiKeyMsg.type === 'success' ? 'bg-green-50 border border-green-200 text-green-600' : 'bg-red-50 border border-red-200 text-red-600'}`}>
+                {apiKeyMsg.text}
+              </div>
+            )}
           </div>
         </div>
 

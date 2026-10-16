@@ -3,7 +3,17 @@ import { createClient } from "@libsql/client";
 import { put, del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+
+async function getGeminiApiKey(): Promise<string> {
+  try {
+    const result = await db.execute({ sql: "SELECT value FROM settings WHERE key = ?", args: ["gemini_api_key"] });
+    if (result.rows.length > 0 && (result.rows[0].value as string)) {
+      return result.rows[0].value as string;
+    }
+  } catch {}
+  return ENV_GEMINI_API_KEY;
+}
 
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:local.db",
@@ -33,6 +43,14 @@ async function initDatabase() {
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -153,7 +171,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       try {
         const { GoogleGenAI } = await import("@google/genai");
-        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+        const currentKey = await getGeminiApiKey();
+        const ai = new GoogleGenAI({ apiKey: currentKey });
         const result = await ai.models.generateContent({
           model: "gemini-2.5-flash-preview-0514",
           contents: [{
@@ -171,6 +190,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (e: any) {
         console.error("Speech-to-text error:", e.message);
         return res.status(500).json({ error: "Loi nhan dang am thanh: " + e.message });
+      }
+    }
+
+    // Settings - Get API Key
+    if (pathname === "/api/settings/api-key" && method === "GET") {
+      try {
+        const key = await getGeminiApiKey();
+        const masked = key ? key.substring(0, 10) + "..." + key.substring(key.length - 4) : "";
+        return res.status(200).json({ hasKey: !!key, maskedKey: masked });
+      } catch (e) {
+        return res.status(500).json({ error: "Loi khi lay thong tin API key" });
+      }
+    }
+
+    // Settings - Get API Key Value (for client-side use)
+    if (pathname === "/api/settings/api-key-value" && method === "GET") {
+      try {
+        const key = await getGeminiApiKey();
+        return res.status(200).json({ apiKey: key });
+      } catch (e) {
+        return res.status(500).json({ error: "Loi khi lay API key" });
+      }
+    }
+
+    // Settings - Update API Key
+    if (pathname === "/api/settings/api-key" && method === "PUT") {
+      const { apiKey } = req.body || {};
+      if (!apiKey || !apiKey.trim()) {
+        return res.status(400).json({ error: "API key khong duoc de trong" });
+      }
+      try {
+        await db.execute({
+          sql: `INSERT INTO settings (key, value, updated_at) VALUES ('gemini_api_key', ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
+          args: [apiKey.trim(), apiKey.trim()],
+        });
+        return res.status(200).json({ success: true });
+      } catch (e) {
+        console.error("Update API key error:", e);
+        return res.status(500).json({ error: "Loi khi cap nhat API key" });
       }
     }
 
